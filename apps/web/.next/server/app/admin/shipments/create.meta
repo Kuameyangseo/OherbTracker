@@ -1,0 +1,7 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "4294967294",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/admin/layout,_N_T_/admin/shipments/layout,_N_T_/admin/shipments/create/layout,_N_T_/admin/shipments/create/page,_N_T_/admin/shipments/create"
+  }
+}

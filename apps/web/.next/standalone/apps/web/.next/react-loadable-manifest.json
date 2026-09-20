@@ -1,0 +1,18 @@
+{
+  "components/admin/admin-shipment-detail.tsx -> ../maps/shipment-map": {
+    "id": 4905,
+    "files": [
+      "static/css/ab28570ae691aba6.css",
+      "static/chunks/e89fb3a8.edb2678e84519ab9.js",
+      "static/chunks/905.2ad1346e43dc4d48.js"
+    ]
+  },
+  "components/shipments/shipment-detail.tsx -> ../maps/shipment-map": {
+    "id": 4905,
+    "files": [
+      "static/css/ab28570ae691aba6.css",
+      "static/chunks/e89fb3a8.edb2678e84519ab9.js",
+      "static/chunks/905.2ad1346e43dc4d48.js"
+    ]
+  }
+}

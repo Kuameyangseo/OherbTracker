@@ -1,0 +1,19 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/admin/analytics/page": "/admin/analytics",
+  "/admin/page": "/admin",
+  "/admin/reports/page": "/admin/reports",
+  "/admin/shipments/create/page": "/admin/shipments/create",
+  "/admin/shipments/page": "/admin/shipments",
+  "/dashboard/page": "/dashboard",
+  "/login/page": "/login",
+  "/notifications/page": "/notifications",
+  "/page": "/",
+  "/profile/page": "/profile",
+  "/register/page": "/register",
+  "/shipments/page": "/shipments",
+  "/track/page": "/track",
+  "/admin/shipments/[id]/page": "/admin/shipments/[id]",
+  "/shipments/[id]/page": "/shipments/[id]",
+  "/track/[trackingNumber]/page": "/track/[trackingNumber]"
+}

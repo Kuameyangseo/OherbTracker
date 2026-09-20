@@ -1,0 +1,52 @@
+{
+  "name": "@oherb-tracker/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "dev:pm2": "rm -rf .next-dev && next dev -p 3100",
+    "build": "NODE_ENV=production NEXT_PHASE=phase-production-build next build && mkdir -p .next/standalone/apps/web/.next && cp -r .next/static .next/standalone/apps/web/.next/static && if [ -d public ]; then cp -r public .next/standalone/apps/web/public; fi",
+    "start": "next start"
+  },
+  "nx": {
+    "targets": {
+      "serve": {
+        "continuous": true,
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "npm run dev",
+          "cwd": "apps/web"
+        }
+      },
+      "build": {
+        "executor": "nx:run-commands",
+        "outputs": [
+          "{projectRoot}/.next"
+        ],
+        "options": {
+          "command": "npm run build",
+          "cwd": "apps/web"
+        }
+      },
+      "start": {
+        "continuous": true,
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "npm run start",
+          "cwd": "apps/web"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "next": "^15.2.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-leaflet": "^5.0.0",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.22"
+  }
+}

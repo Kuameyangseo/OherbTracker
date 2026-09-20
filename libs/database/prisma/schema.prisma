@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum ShipmentStatus {
+  CREATED
+  LABEL_CREATED
+  PICKED_UP
+  IN_TRANSIT
+  ARRIVED_AT_FACILITY
+  DEPARTED_FACILITY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  CANCELLED
+  RETURNED
+}
+
+enum ServiceType {
+  STANDARD
+  EXPRESS
+  OVERNIGHT
+}
+
+model User {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  shipments    Shipment[] @relation("CustomerShipments")
+}
+
+model Address {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  phone            String
+  addressLine1     String
+  addressLine2     String?
+  city             String
+  state            String?
+  postalCode       String
+  country          String
+  latitude         Float?
+  longitude        Float?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  originShipments  Shipment[] @relation("OriginAddress")
+  destinationShipments Shipment[] @relation("DestinationAddress")
+}
+
+model Shipment {
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  trackingNumber       String          @unique
+  customerId           String          @db.ObjectId
+  customer             User            @relation("CustomerShipments", fields: [customerId], references: [id])
+  status               ShipmentStatus
+  serviceType          ServiceType
+  originAddressId      String          @db.ObjectId
+  originAddress        Address         @relation("OriginAddress", fields: [originAddressId], references: [id])
+  destinationAddressId  String          @db.ObjectId
+  destinationAddress   Address         @relation("DestinationAddress", fields: [destinationAddressId], references: [id])
+  estimatedDelivery    DateTime?
+  actualDelivery       DateTime?
+  weight               Float?
+  description          String?
+  currentLocation      Json?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  trackingEvents       TrackingEvent[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+model TrackingEvent {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  shipmentId  String        @db.ObjectId
+  shipment    Shipment      @relation(fields: [shipmentId], references: [id])
+  status      ShipmentStatus
+  description String
+  location    String
+  city        String
+  country     String
+  latitude    Float?
+  longitude   Float?
+  timestamp   DateTime      @default(now())
+
+  @@index([shipmentId, timestamp(sort: Desc)])
+  @@unique([shipmentId, status, timestamp])
+}

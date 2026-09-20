@@ -1,0 +1,34 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/OherbTracker"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./libs/shared-types"
+    },
+    {
+      "path": "./libs/validation"
+    },
+    {
+      "path": "./libs/auth"
+    },
+    {
+      "path": "./libs/config"
+    },
+    {
+      "path": "./libs/ui"
+    },
+    {
+      "path": "./libs/database"
+    }
+  ]
+}
