@@ -49,4 +49,4 @@ test-output
 .nx/polygraph
 
 .pm2-logs/
-error.log
+error.log*.deb
