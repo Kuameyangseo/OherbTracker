@@ -30,7 +30,7 @@ export function createSocketServer(httpServer: HttpServer) {
   });
 
   io.on('connection', (socket) => {
-    const user = socket.data.user as { id: string; email: string; role: 'CUSTOMER' | 'STAFF' | 'ADMIN' };
+    const user = socket.data.user as { id: string; email: string; role: 'CUSTOMER' | 'SELLER' | 'STAFF' | 'ADMIN' };
     console.log('[socket] connected', { socketId: socket.id, userId: user.id, role: user.role });
     void socket.join(userRoom(user.id));
 

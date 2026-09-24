@@ -5,6 +5,7 @@ import {
   createShipmentController,
   deleteShipmentController,
   getShipmentController,
+  listCustomersController,
   listShipmentsController,
   updateShipmentController,
 } from '../controllers/shipment.controller.js';
@@ -13,6 +14,7 @@ const shipmentRouter = Router();
 
 shipmentRouter.post('/', requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), createShipmentController);
 shipmentRouter.get('/', requireAuth, listShipmentsController);
+shipmentRouter.get('/customers', requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), listCustomersController);
 shipmentRouter.get('/:id', requireAuth, getShipmentController);
 shipmentRouter.patch('/:id', requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), updateShipmentController);
 shipmentRouter.delete('/:id', requireAuth, requireRole(UserRole.ADMIN), deleteShipmentController);

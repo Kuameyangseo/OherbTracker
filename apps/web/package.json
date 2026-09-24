@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
-    "dev:pm2": "rm -rf .next-dev && next dev -p 3100",
-    "build": "NODE_ENV=production NEXT_PHASE=phase-production-build next build && mkdir -p .next/standalone/apps/web/.next && cp -r .next/static .next/standalone/apps/web/.next/static && if [ -d public ]; then cp -r public .next/standalone/apps/web/public; fi",
+    "dev:pm2": "next dev -p 3100",
+    "build": "node scripts/build-next.cjs",
     "start": "next start"
   },
   "nx": {

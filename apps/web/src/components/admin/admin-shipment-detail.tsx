@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AdminAccess } from './admin-access';
 import { ApiError, createTrackingEvent, deleteShipment, getShipmentById, getShipmentEvents, updateShipment, updateShipmentStatus, type Shipment, type ShipmentStatus, type TrackingEvent, type TrackingEventInput } from '../../lib/api-client';
 import { PageContainer } from '../layout/page-container';
@@ -28,28 +29,43 @@ function mapLocation(location: { latitude?: number; longitude?: number; name?: s
 }
 
 const transitions: Record<string, ShipmentStatus[]> = {
-  CREATED: ['LABEL_CREATED', 'CANCELLED'], LABEL_CREATED: ['PICKED_UP', 'CANCELLED'], PICKED_UP: ['IN_TRANSIT', 'EXCEPTION'],
-  IN_TRANSIT: ['ARRIVED_AT_FACILITY', 'EXCEPTION', 'RETURNED'], ARRIVED_AT_FACILITY: ['DEPARTED_FACILITY', 'EXCEPTION'],
-  DEPARTED_FACILITY: ['ARRIVED_AT_FACILITY', 'OUT_FOR_DELIVERY', 'EXCEPTION'], OUT_FOR_DELIVERY: ['DELIVERED', 'EXCEPTION', 'RETURNED'],
-  EXCEPTION: ['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'RETURNED', 'CANCELLED'], DELIVERED: [], CANCELLED: [], RETURNED: [],
+  CREATED: ['LABEL_CREATED', 'CANCELLED'], LABEL_CREATED: ['PICKUP_SCHEDULED', 'PICKED_UP', 'CANCELLED'],
+  PICKUP_SCHEDULED: ['PICKED_UP', 'CANCELLED'],
+  PICKED_UP: ['AT_ORIGIN_FACILITY', 'IN_TRANSIT', 'EXCEPTION'],
+  AT_ORIGIN_FACILITY: ['IN_TRANSIT', 'EXCEPTION'],
+  IN_TRANSIT: ['OUT_FOR_DELIVERY', 'ARRIVED_AT_FACILITY', 'AT_DESTINATION_FACILITY', 'EXCEPTION', 'RETURNED'],
+  ARRIVED_AT_FACILITY: ['DEPARTED_FACILITY', 'AT_DESTINATION_FACILITY', 'EXCEPTION'],
+  DEPARTED_FACILITY: ['ARRIVED_AT_FACILITY', 'AT_DESTINATION_FACILITY', 'OUT_FOR_DELIVERY', 'EXCEPTION'],
+  AT_DESTINATION_FACILITY: ['OUT_FOR_DELIVERY', 'EXCEPTION'],
+  OUT_FOR_DELIVERY: ['DELIVERED', 'DELIVERY_ATTEMPTED', 'EXCEPTION', 'RETURNED'],
+  DELIVERY_ATTEMPTED: ['OUT_FOR_DELIVERY', 'EXCEPTION', 'RETURNED'],
+  EXCEPTION: ['IN_TRANSIT', 'OUT_FOR_DELIVERY', 'RETURNED', 'CANCELLED'],
+  DELIVERED: [], CANCELLED: [], RETURNED: [],
 };
 const label = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 function ActionForm({ shipment, onSuccess }: { shipment: Shipment; onSuccess: (message: string) => Promise<void> }) {
   const [mode, setMode] = useState<'status' | 'event'>('status');
-  const [status, setStatus] = useState<ShipmentStatus>(transitions[shipment.status]?.[0] ?? shipment.status);
+  const availableStatuses = useMemo(
+    () => transitions[shipment.status] ?? [],
+    [shipment.status],
+  );
+  const [status, setStatus] = useState<ShipmentStatus>(availableStatuses[0] ?? shipment.status);
   const [form, setForm] = useState({ description: '', location: shipment.currentLocation?.name ?? '', city: shipment.currentLocation?.city ?? '', country: shipment.currentLocation?.country ?? '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const options = mode === 'status' ? transitions[shipment.status] ?? [] : Object.keys(transitions) as ShipmentStatus[];
+  const options = mode === 'status'
+    ? availableStatuses
+    : [shipment.status, ...availableStatuses];
 
   useEffect(() => {
-    setStatus(transitions[shipment.status]?.[0] ?? shipment.status);
-  }, [shipment.status]);
+    setStatus(availableStatuses[0] ?? shipment.status);
+  }, [shipment.status, availableStatuses]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
+    if (options.length === 0) return;
     if (!status || form.description.trim().length < 2 || form.location.trim().length < 2 || form.city.trim().length < 2 || form.country.trim().length < 2) {
       setError('Status, description, location, city, and country are required.');
       return;
@@ -85,7 +101,17 @@ function ActionForm({ shipment, onSuccess }: { shipment: Shipment; onSuccess: (m
     <div className="panel-title-row"><h2>Shipment Actions</h2><div className="action-tabs"><button className={mode === 'status' ? 'active' : ''} onClick={() => setMode('status')}>Update Status</button><button className={mode === 'event' ? 'active' : ''} onClick={() => setMode('event')}>Add Tracking Event</button></div></div>
     <form className="admin-action-form" onSubmit={submit}>
       <label className="form-label" htmlFor="admin-status">Status</label>
-      <Select id="admin-status" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)} disabled={submitting}><option value="">Select status</option>{options.map((value) => <option key={value} value={value}>{label(value)}</option>)}</Select>
+      <div className="admin-current-status" aria-live="polite">
+        <ShipmentStatusBadge status={shipment.status} />
+        <span>Current status: {label(shipment.status)}</span>
+      </div>
+      {options.length > 0 ? (
+        <Select id="admin-status" value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)} disabled={submitting}>
+          {options.map((value) => <option key={value} value={value}>{label(value)}</option>)}
+        </Select>
+      ) : (
+        <p className="form-help">This shipment has no further status actions because it is in a terminal state.</p>
+      )}
       <label className="form-label" htmlFor="admin-location">Location</label><Input id="admin-location" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} disabled={submitting} />
       <label className="form-label" htmlFor="admin-city">City</label><Input id="admin-city" value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} disabled={submitting} />
       <label className="form-label" htmlFor="admin-country">Country</label><Input id="admin-country" value={form.country} onChange={(event) => setForm({ ...form, country: event.target.value })} disabled={submitting} />
@@ -142,6 +168,7 @@ function LocationForm({ shipment, onSuccess }: { shipment: Shipment; onSuccess: 
 
 export function AdminShipmentDetail({ shipmentId }: { shipmentId: string }) {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [events, setEvents] = useState<TrackingEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +176,12 @@ export function AdminShipmentDetail({ shipmentId }: { shipmentId: string }) {
   const [message, setMessage] = useState('');
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('updated') !== '1') return;
+    setMessage('Shipment updated successfully.');
+    window.history.replaceState({}, '', `/admin/shipments/${shipmentId}`);
+  }, [searchParams, shipmentId]);
 
   async function load() {
     setLoading(true); setError('');
@@ -202,17 +235,17 @@ export function AdminShipmentDetail({ shipmentId }: { shipmentId: string }) {
     }
   }
 
-  return <AdminAccess><PageContainer className="admin-page">
+  return <AdminAccess><PageContainer className="admin-page admin-shipment-detail-page">
     {loading ? <PageLoading /> : error === 'not-found' ? <><NotFoundState title="Shipment not found" message="The shipment may no longer exist or the link may be invalid." /><Link className="form-button" href="/admin/shipments">Back to Shipments</Link></> : error ? <ErrorCard title="Unable to load shipment" message={error} /> : shipment ? <>
       <Link className="back-link" href="/admin/shipments">← Back to Shipments</Link>
-      <div className="admin-page-heading"><div><span className="section-kicker">Shipment Management</span><h1>{shipment.trackingNumber}</h1></div><div className="detail-actions"><ShipmentStatusBadge status={shipment.status} /><span className={`realtime-indicator ${realtime === 'connected' ? 'is-live' : ''}`} aria-live="polite">{realtime === 'connected' ? '● Live updates' : '○ Live updates unavailable'}</span><button className="form-button muted-button" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel Edit' : 'Edit Shipment'}</button></div></div>
+      <div className="shipment-detail-hero"><div><span className="admin-heading-kicker"><span className="admin-live-dot" /> Shipment Management</span><h1>{shipment.trackingNumber}</h1><p className="shipment-detail-subtitle">Monitor movement, update milestones, and keep the delivery record precise.</p></div><div className="detail-actions"><ShipmentStatusBadge status={shipment.status} /><span className={`realtime-indicator ${realtime === 'connected' ? 'is-live' : ''}`} aria-live="polite">{realtime === 'connected' ? '● Live updates' : '○ Live updates unavailable'}</span><button className="form-button muted-button" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel Edit' : 'Edit Shipment'}</button></div></div>
       {message ? <div className="alert alert-success" role="status">{message}</div> : null}
       {editing ? <ShipmentForm shipment={shipment} /> : null}
-      <section className="detail-grid"><article className="detail-card"><span className="card-label">Customer</span><span className="card-value">{shipment.customer?.name ?? shipment.customer?.email ?? 'Unavailable'}</span></article><article className="detail-card"><span className="card-label">Service</span><span className="card-value"><ServiceTypeBadge type={shipment.serviceType} /></span></article><article className="detail-card"><span className="card-label">Origin</span><span className="card-value">{shipment.origin?.city ?? shipment.origin?.country ?? 'Unavailable'}</span></article><article className="detail-card"><span className="card-label">Destination</span><span className="card-value">{shipment.destination?.city ?? shipment.destination?.country ?? 'Unavailable'}</span></article></section>
-      <section className="detail-timeline"><div className="panel-title-row"><h2>Shipment Map</h2><span className="form-help">Markers appear only when coordinates are available.</span></div><ShipmentMap origin={mapLocation(shipment.origin, shipment.origin?.city)} currentLocation={mapLocation(shipment.currentLocation, shipment.currentLocation?.name)} destination={mapLocation(shipment.destination, shipment.destination?.city)} /></section>
-      <section className="detail-grid-two"><article className="detail-card"><h2>Shipment Information</h2><div className="detail-row"><span className="detail-label">Current Location</span><span>{shipment.currentLocation?.name ?? latestEvent?.location ?? 'Unavailable'}</span></div><div className="detail-row"><span className="detail-label">Created</span><span>{shipment.createdAt ? new Date(shipment.createdAt).toLocaleString() : 'Unknown'}</span></div><div className="detail-row"><span className="detail-label">Updated</span><span>{shipment.updatedAt ? new Date(shipment.updatedAt).toLocaleString() : 'Unknown'}</span></div></article><article className="detail-card"><h2>Tracking History</h2>{events.length === 0 ? <p>No tracking events are available.</p> : <ul className="timeline-list">{events.map((event, index) => <li className={`timeline-item ${index === events.length - 1 ? 'timeline-latest' : ''}`} key={`${event.timestamp}-${index}`}><span className="timeline-dot" /><div><strong><ShipmentStatusBadge status={event.status} /></strong><p>{event.description}</p><div className="timeline-meta">{[event.location, event.city, event.country].filter(Boolean).join(', ')}</div><div className="timeline-meta">{event.timestamp ? new Date(event.timestamp).toLocaleString() : 'Timestamp unavailable'}</div></div></li>)}</ul>}</article></section>
-      <ActionForm shipment={shipment} onSuccess={async (successMessage) => { setMessage(successMessage); await load(); }} />
-      <LocationForm shipment={shipment} onSuccess={async (successMessage) => { setMessage(successMessage); await load(); }} />
+      <section className="shipment-stat-grid"><article><span>Customer</span><strong>{shipment.customer?.name ?? shipment.customer?.email ?? 'Unavailable'}</strong><small>{shipment.customer?.email ?? 'No customer email'}</small></article><article><span>Service</span><strong><ServiceTypeBadge type={shipment.serviceType} /></strong><small>{shipment.weight ? `${shipment.weight} kg` : 'Weight not provided'}</small></article><article><span>Origin</span><strong>{shipment.origin?.city ?? shipment.origin?.country ?? 'Unavailable'}</strong><small>Pickup location</small></article><article><span>Destination</span><strong>{shipment.destination?.city ?? shipment.destination?.country ?? 'Unavailable'}</strong><small>Delivery location</small></article></section>
+      <section className="shipment-overview-grid"><article className="shipment-map-panel"><div className="panel-title-row"><div><span className="section-kicker">Live route</span><h2>Shipment Map</h2></div><span className="form-help">Markers require coordinates.</span></div><ShipmentMap origin={mapLocation(shipment.origin, shipment.origin?.city)} currentLocation={mapLocation(shipment.currentLocation, shipment.currentLocation?.name)} destination={mapLocation(shipment.destination, shipment.destination?.city)} /></article><article className="shipment-info-panel"><div className="panel-title-row"><div><span className="section-kicker">Record</span><h2>Shipment Information</h2></div></div><div className="shipment-info-list"><div><span>Current location</span><strong>{shipment.currentLocation?.name ?? latestEvent?.location ?? 'Unavailable'}</strong></div><div><span>Created</span><strong>{shipment.createdAt ? new Date(shipment.createdAt).toLocaleString() : 'Unknown'}</strong></div><div><span>Last updated</span><strong>{shipment.updatedAt ? new Date(shipment.updatedAt).toLocaleString() : 'Unknown'}</strong></div><div><span>Tracking status</span><strong>{shipment.status.replaceAll('_', ' ')}</strong></div></div></article></section>
+      <section className="shipment-history-panel"><div className="panel-title-row"><div><span className="section-kicker">Operational log</span><h2>Tracking History</h2></div><span className="form-help">{events.length} recorded {events.length === 1 ? 'event' : 'events'}</span></div>{events.length === 0 ? <p>No tracking events are available.</p> : <ul className="timeline-list">{events.map((event, index) => <li className={`timeline-item ${index === events.length - 1 ? 'timeline-latest' : ''}`} key={`${event.timestamp}-${index}`}><span className="timeline-dot" /><div><strong><ShipmentStatusBadge status={event.status} /></strong><p>{event.description}</p><div className="timeline-meta">{[event.location, event.city, event.country].filter(Boolean).join(', ')}</div><div className="timeline-meta">{event.timestamp ? new Date(event.timestamp).toLocaleString() : 'Timestamp unavailable'}</div></div></li>)}</ul>}</section>
+      <div className="shipment-operations-heading"><div><span className="section-kicker">Operations</span><h2>Manage shipment</h2></div><span>Changes are recorded in the shipment timeline.</span></div>
+      <div className="shipment-operations-grid"><ActionForm shipment={shipment} onSuccess={async (successMessage) => { setMessage(successMessage); await load(); }} /><LocationForm shipment={shipment} onSuccess={async (successMessage) => { setMessage(successMessage); await load(); }} /></div>
       {user?.role === 'ADMIN' && <button className="danger-button" type="button" disabled={deleting} onClick={() => void removeShipment()}>{deleting ? 'Deleting...' : 'Delete Shipment'}</button>}
     </> : null}
   </PageContainer></AdminAccess>;

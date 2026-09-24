@@ -1,4 +1,4 @@
-// File: /home/mhd/OherbTracker/apps/web/src/app/admin/analytics/page.tsx
+// File: C:\Users\dumos\Documents\OherbTracker\apps\web\src\app\admin\analytics\page.tsx
 import * as entry from '../../../../../src/app/admin/analytics/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

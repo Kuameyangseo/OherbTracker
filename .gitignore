@@ -50,3 +50,6 @@ test-output
 
 .pm2-logs/
 error.log*.deb
+
+.env
+.env.local

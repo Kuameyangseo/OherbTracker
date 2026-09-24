@@ -34,6 +34,8 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
     },
+    externalCustomerId: { type: String, trim: true },
+    externalSellerId: { type: String, trim: true },
     passwordHash: { type: String, required: true, select: false },
     role: {
       type: String,
@@ -56,6 +58,8 @@ const userSchema = new Schema(
   },
   { timestamps: true },
 );
+userSchema.index({ externalCustomerId: 1 }, { unique: true, sparse: true });
+userSchema.index({ externalSellerId: 1 }, { unique: true, sparse: true });
 
 const addressSchema = new Schema(
   {
@@ -88,6 +92,11 @@ const shipmentSchema = new Schema(
     externalCustomerId: { type: String, trim: true, index: true },
     externalSellerId: { type: String, trim: true, index: true },
     customerId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
+    sellerId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       index: true,
@@ -130,6 +139,12 @@ shipmentSchema.index({ externalOrderId: 1 }, { unique: true, sparse: true });
 shipmentSchema.virtual('customer', {
   ref: 'User',
   localField: 'customerId',
+  foreignField: '_id',
+  justOne: true,
+});
+shipmentSchema.virtual('seller', {
+  ref: 'User',
+  localField: 'sellerId',
   foreignField: '_id',
   justOne: true,
 });
@@ -217,6 +232,9 @@ const packageSchema = new Schema(
       index: true,
       trim: true,
     },
+    carrier: { type: String, trim: true },
+    carrierLabelId: { type: String, trim: true },
+    carrierLabelUrl: { type: String, trim: true },
     weight: { type: Number, required: true, min: 0 },
     weightUnit: {
       type: String,

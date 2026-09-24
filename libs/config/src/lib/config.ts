@@ -8,9 +8,14 @@ export type ServerConfig = {
   authSecret: string;
   authCookieName: string;
   trackerApiKey?: string;
-  emailProvider: 'console' | 'disabled';
+  emailProvider: 'console' | 'smtp' | 'disabled';
   smsProvider: 'console' | 'disabled';
   emailFrom: string;
+  smtpHost?: string;
+  smtpPort: number;
+  smtpService?: string;
+  smtpUser?: string;
+  smtpPass?: string;
   appName: string;
 };
 
@@ -35,8 +40,17 @@ export const serverConfig: ServerConfig = {
   authCookieName: process.env.AUTH_COOKIE_NAME ?? 'swifttrack_session',
   trackerApiKey: process.env.TRACKER_API_KEY,
   emailProvider:
-    process.env.EMAIL_PROVIDER === 'disabled' ? 'disabled' : 'console',
+    process.env.EMAIL_PROVIDER === 'disabled'
+      ? 'disabled'
+      : process.env.EMAIL_PROVIDER === 'smtp'
+        ? 'smtp'
+        : 'console',
   smsProvider: process.env.SMS_PROVIDER === 'disabled' ? 'disabled' : 'console',
   emailFrom: process.env.EMAIL_FROM ?? 'notifications@localhost.invalid',
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: Number(process.env.SMTP_PORT ?? 465),
+  smtpService: process.env.SMTP_SERVICE,
+  smtpUser: process.env.SMTP_USER,
+  smtpPass: process.env.SMTP_PASS,
   appName: process.env.APP_NAME ?? 'OherbTracker',
 };

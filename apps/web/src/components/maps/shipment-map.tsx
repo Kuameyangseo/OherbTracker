@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
+import type { ComponentType } from 'react';
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+
+const StyledPolyline = Polyline as unknown as ComponentType<{
+  positions: [number, number][];
+  pathOptions: { color: string; dashArray: string; weight: number };
+}>;
 
 export type MapLocation = {
   label?: string;
@@ -44,7 +50,7 @@ export function ShipmentMap({ origin, currentLocation, destination }: { origin?:
       {origin ? <CircleMarker center={[origin.latitude, origin.longitude]} pathOptions={{ color: '#315b3d', fillColor: '#6d936b', fillOpacity: 0.9 }} radius={9}><Popup>Origin: {locationName(origin)}</Popup></CircleMarker> : null}
       {currentLocation ? <CircleMarker center={[currentLocation.latitude, currentLocation.longitude]} pathOptions={{ color: '#b94747', fillColor: '#e97878', fillOpacity: 0.95 }} radius={10}><Popup>Current location: {locationName(currentLocation)}</Popup></CircleMarker> : null}
       {destination ? <CircleMarker center={[destination.latitude, destination.longitude]} pathOptions={{ color: '#164a34', fillColor: '#b8d6bd', fillOpacity: 0.9 }} radius={9}><Popup>Destination: {locationName(destination)}</Popup></CircleMarker> : null}
-      {line.length > 1 ? <Polyline positions={line} pathOptions={{ color: '#6d936b', dashArray: '6 8', weight: 3 }} /> : null}
+      {line.length > 1 ? <StyledPolyline positions={line} pathOptions={{ color: '#6d936b', dashArray: '6 8', weight: 3 }} /> : null}
     </MapContainer>
     <div className="map-legend" aria-label="Map legend">
       {origin ? <span><i className="map-key origin-key" />Origin</span> : null}

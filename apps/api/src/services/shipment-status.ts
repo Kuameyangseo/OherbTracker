@@ -7,6 +7,7 @@ const transitions: Record<ShipmentStatus, readonly ShipmentStatus[]> = {
   [ShipmentStatus.PICKED_UP]: [ShipmentStatus.AT_ORIGIN_FACILITY, ShipmentStatus.IN_TRANSIT, ShipmentStatus.EXCEPTION],
   [ShipmentStatus.AT_ORIGIN_FACILITY]: [ShipmentStatus.IN_TRANSIT, ShipmentStatus.EXCEPTION],
   [ShipmentStatus.IN_TRANSIT]: [
+    ShipmentStatus.OUT_FOR_DELIVERY,
     ShipmentStatus.ARRIVED_AT_FACILITY,
     ShipmentStatus.AT_DESTINATION_FACILITY,
     ShipmentStatus.EXCEPTION,

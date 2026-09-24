@@ -74,7 +74,12 @@ const integrationAddressSchema = z.object({
   state: z.string().trim().max(100).optional(),
   postalCode: z.string().trim().min(2).max(30),
   country: z.string().trim().min(2).max(100),
-});
+  latitude: z.number().finite().min(-90).max(90).optional(),
+  longitude: z.number().finite().min(-180).max(180).optional(),
+}).refine(
+  (value) => (value.latitude === undefined) === (value.longitude === undefined),
+  'Latitude and longitude must be provided together',
+);
 
 const integrationUnit = <T extends string>(values: readonly T[]) =>
   z
@@ -87,8 +92,19 @@ export const trackerIntegrationShipmentSchema = z.object({
   externalOrderId: z.string().trim().min(1).max(160),
   externalCustomerId: z.string().trim().min(1).max(160),
   externalSellerId: z.string().trim().min(1).max(160),
-  carrier: z.literal('MY_APP'),
+  seller: integrationAddressSchema,
+  carrier: z.literal('OherbTracker'),
+  trackingNumber: z.string().trim().min(4).max(80).optional(),
+  labelUrl: z.string().url().max(2000).optional(),
   service: serviceTypeSchema,
+  notifyStaff: z.boolean().optional().default(false),
+    currentLocation: z.object({
+      name: z.string().trim().min(1).max(120),
+      city: z.string().trim().min(1).max(100),
+      country: z.string().trim().min(2).max(100),
+      latitude: z.number().finite().min(-90).max(90),
+      longitude: z.number().finite().min(-180).max(180),
+    }).optional(),
   sender: integrationAddressSchema,
   recipient: integrationAddressSchema,
   package: z.object({

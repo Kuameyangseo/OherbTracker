@@ -32,15 +32,26 @@ export type AuthUser = {
   name?: string;
 };
 
+export type CustomerOption = {
+  id: string;
+  name: string;
+  email: string;
+  externalCustomerId?: string | null;
+};
+
 export type ShipmentStatus =
   | 'CREATED'
   | 'LABEL_CREATED'
+  | 'PICKUP_SCHEDULED'
   | 'PICKED_UP'
+  | 'AT_ORIGIN_FACILITY'
   | 'IN_TRANSIT'
   | 'ARRIVED_AT_FACILITY'
   | 'DEPARTED_FACILITY'
+  | 'AT_DESTINATION_FACILITY'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
+  | 'DELIVERY_ATTEMPTED'
   | 'EXCEPTION'
   | 'CANCELLED'
   | 'RETURNED';
@@ -342,6 +353,11 @@ export async function listShipments(query?: { page?: number; limit?: number; sea
   if (query?.sortOrder) params.set('sortOrder', query.sortOrder);
   const suffix = params.size ? `?${params.toString()}` : '';
   return apiRequest<ShipmentListResponse>(`/api/shipments${suffix}`, { method: 'GET' });
+}
+
+export async function listCustomers(search?: string) {
+  const params = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+  return apiRequest<{ customers: CustomerOption[] }>(`/api/shipments/customers${params}`, { method: 'GET' });
 }
 
 export async function getShipmentById(id: string) {

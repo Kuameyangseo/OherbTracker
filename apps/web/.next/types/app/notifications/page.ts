@@ -1,4 +1,4 @@
-// File: /home/mhd/OherbTracker/apps/web/src/app/notifications/page.tsx
+// File: C:\Users\dumos\Documents\OherbTracker\apps\web\src\app\notifications\page.tsx
 import * as entry from '../../../../src/app/notifications/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

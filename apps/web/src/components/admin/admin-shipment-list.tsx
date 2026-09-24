@@ -29,7 +29,12 @@ export function AdminShipmentList({ initialQuery }: { initialQuery: ShipmentList
       .then((response) => {
         if (!active) return;
         setShipments(response.shipments ?? []);
-        setPagination(response.pagination);
+        setPagination({
+          page: Number(response.pagination?.page) || 1,
+          limit: Number(response.pagination?.limit) || 20,
+          total: Number(response.pagination?.total) || 0,
+          totalPages: Number(response.pagination?.totalPages) || 0,
+        });
       })
       .catch((requestError) => {
         if (active) setError(requestError instanceof Error ? requestError.message : 'Unable to load shipments.');
@@ -54,31 +59,41 @@ export function AdminShipmentList({ initialQuery }: { initialQuery: ShipmentList
   return (
     <AdminAccess>
       <PageContainer className="admin-page">
-        <div className="admin-page-heading">
-          <div><span className="section-kicker">Internal Operations</span><h1>Shipment Management</h1><p className="muted-copy">Search and manage shipments authorized for your role.</p></div>
-          <Link className="form-button" href="/admin/shipments/create">Create Shipment</Link>
-          <Link className="back-link" href="/admin">Operations Dashboard</Link>
+        <div className="admin-page-heading shipments-heading">
+          <div>
+            <div className="admin-heading-kicker"><span className="admin-live-dot" /> Operations / Shipments</div>
+            <h1>Shipment control center</h1>
+            <p className="muted-copy">Search, review, and manage every shipment in one place.</p>
+          </div>
+          <div className="admin-heading-actions">
+            <Link className="back-link" href="/admin">Operations Dashboard</Link>
+            <Link className="form-button admin-primary-action" href="/admin/shipments/create"><span aria-hidden="true">+</span> Create shipment</Link>
+          </div>
         </div>
-        <section className="admin-filter-panel" aria-label="Shipment filters">
-          <Input value={query.search ?? ''} onChange={(event) => setQuery({ ...query, search: event.target.value })} placeholder="Search by tracking number or customer..." aria-label="Search shipments" />
-          <Select value={query.status ?? ''} onChange={(event) => updateQuery({ status: event.target.value })} aria-label="Filter by status"><option value="">All Statuses</option>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</Select>
-          <Select value={query.serviceType ?? ''} onChange={(event) => updateQuery({ serviceType: event.target.value })} aria-label="Filter by service"><option value="">All Services</option><option value="STANDARD">Standard</option><option value="EXPRESS">Express</option><option value="OVERNIGHT">Overnight</option></Select>
-          <Select value={`${query.sortBy ?? 'createdAt'}:${query.sortOrder ?? 'desc'}`} onChange={(event) => { const [sortBy, sortOrder] = event.target.value.split(':'); updateQuery({ sortBy, sortOrder }); }} aria-label="Sort shipments"><option value="createdAt:desc">Newest</option><option value="createdAt:asc">Oldest</option><option value="updatedAt:desc">Recently Updated</option></Select>
-          <button className="form-button" type="button" onClick={() => updateQuery({ search: query.search })}>Search</button>
-          <button className="form-button muted-button" type="button" onClick={() => updateQuery({ search: '', status: '', serviceType: '', sortBy: 'createdAt', sortOrder: 'desc' })}>Clear</button>
+        <div className="shipment-summary-strip" aria-label="Shipment summary">
+          <div><span className="shipment-summary-label">Showing</span><strong>{(Number(pagination.total) || 0).toLocaleString()}</strong><span>shipments</span></div>
+          <div><span className="shipment-summary-label">Current view</span><strong>{query.status || 'All statuses'}</strong></div>
+          <div><span className="shipment-summary-label">Last sorted</span><strong>{query.sortOrder === 'asc' ? 'Oldest first' : 'Newest first'}</strong></div>
+        </div>
+        <section className="admin-filter-panel shipment-filter-panel" aria-label="Shipment filters">
+          <label className="shipment-search-field"><span>Find a shipment</span><Input value={query.search ?? ''} onChange={(event) => setQuery({ ...query, search: event.target.value })} placeholder="Tracking number or customer" aria-label="Search shipments" /></label>
+          <label><span>Status</span><Select value={query.status ?? ''} onChange={(event) => updateQuery({ status: event.target.value })} aria-label="Filter by status"><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</Select></label>
+          <label><span>Service</span><Select value={query.serviceType ?? ''} onChange={(event) => updateQuery({ serviceType: event.target.value })} aria-label="Filter by service"><option value="">All services</option><option value="STANDARD">Standard</option><option value="EXPRESS">Express</option><option value="OVERNIGHT">Overnight</option></Select></label>
+          <label><span>Sort by</span><Select value={`${query.sortBy ?? 'createdAt'}:${query.sortOrder ?? 'desc'}`} onChange={(event) => { const [sortBy, sortOrder] = event.target.value.split(':'); updateQuery({ sortBy, sortOrder }); }} aria-label="Sort shipments"><option value="createdAt:desc">Newest</option><option value="createdAt:asc">Oldest</option><option value="updatedAt:desc">Recently updated</option></Select></label>
+          <div className="shipment-filter-actions"><button className="form-button" type="button" onClick={() => updateQuery({ search: query.search })}>Apply filters</button><button className="form-button muted-button" type="button" onClick={() => updateQuery({ search: '', status: '', serviceType: '', sortBy: 'createdAt', sortOrder: 'desc' })}>Reset</button></div>
         </section>
         {error ? <ErrorCard title="Unable to load shipments" message={error} /> : null}
         {loading ? <PageLoading /> : shipments.length === 0 ? <section className="empty-state"><h2>No shipments found</h2><p>{query.search || query.status || query.serviceType ? 'Try adjusting your search or filters.' : 'There are currently no shipments to display.'}</p></section> : (
           <section className="admin-shipment-table" aria-label="Shipments">
-            <div className="admin-table-header"><span>Tracking Number</span><span>Customer</span><span>Status</span><span>Service</span><span>Destination</span><span>Created</span><span>Actions</span></div>
+            <div className="admin-table-header"><span>Shipment</span><span>Customer</span><span>Status</span><span>Service</span><span>Destination</span><span>Created</span><span>Actions</span></div>
             {shipments.map((shipment) => <article className="admin-table-row" key={shipment.id}>
-              <Link className="shipment-link" href={`/admin/shipments/${shipment.id}`}>{shipment.trackingNumber}</Link>
+              <span><Link className="shipment-link" href={`/admin/shipments/${shipment.id}`}>{shipment.trackingNumber}</Link><small className="shipment-row-caption">Open shipment record</small></span>
               <span>{shipment.customer?.name ?? shipment.customer?.email ?? 'Customer unavailable'}</span>
               <span><ShipmentStatusBadge status={shipment.status} /></span>
               <span><ServiceTypeBadge type={shipment.serviceType} /></span>
               <span>{shipment.destination?.city ?? shipment.destination?.country ?? 'Unavailable'}</span>
-              <span>{shipment.createdAt ? new Date(shipment.createdAt).toLocaleDateString() : 'Unknown'}</span>
-              <Link className="form-button muted-button" href={`/admin/shipments/${shipment.id}`}>View</Link>
+              <span className="shipment-date">{shipment.createdAt ? new Date(shipment.createdAt).toLocaleDateString() : 'Unknown'}</span>
+              <Link className="shipment-view-action" href={`/admin/shipments/${shipment.id}`}>View <span aria-hidden="true">-&gt;</span></Link>
             </article>)}
           </section>
         )}

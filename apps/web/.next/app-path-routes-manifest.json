@@ -1,19 +1,19 @@
 {
   "/_not-found/page": "/_not-found",
-  "/admin/analytics/page": "/admin/analytics",
-  "/admin/page": "/admin",
-  "/admin/reports/page": "/admin/reports",
   "/admin/shipments/create/page": "/admin/shipments/create",
+  "/admin/analytics/page": "/admin/analytics",
+  "/admin/reports/page": "/admin/reports",
+  "/admin/page": "/admin",
   "/admin/shipments/page": "/admin/shipments",
   "/dashboard/page": "/dashboard",
-  "/login/page": "/login",
-  "/notifications/page": "/notifications",
   "/page": "/",
-  "/profile/page": "/profile",
-  "/register/page": "/register",
+  "/login/page": "/login",
   "/shipments/page": "/shipments",
   "/track/page": "/track",
-  "/admin/shipments/[id]/page": "/admin/shipments/[id]",
+  "/register/page": "/register",
+  "/profile/page": "/profile",
+  "/notifications/page": "/notifications",
   "/shipments/[id]/page": "/shipments/[id]",
-  "/track/[trackingNumber]/page": "/track/[trackingNumber]"
+  "/track/[trackingNumber]/page": "/track/[trackingNumber]",
+  "/admin/shipments/[id]/page": "/admin/shipments/[id]"
 }

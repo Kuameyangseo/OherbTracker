@@ -13,6 +13,8 @@ async function start() {
 		console.log('[ready] MongoDB connected');
 	} catch (error) {
 		console.error('[startup] MongoDB connection failed', error);
+		process.exitCode = 1;
+		return;
 	}
 
 	httpServer.listen(serverConfig.port, () => {

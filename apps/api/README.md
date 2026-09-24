@@ -44,7 +44,7 @@ without a package reference remain valid. Existing shipment-level tracking by
 The versioned server-to-server endpoint is `POST /api/v1/shipments`. It
 requires `Authorization: Bearer <TRACKER_API_KEY>` and accepts an optional
 `Idempotency-Key` header. The request contains external order/customer/seller
-references, `carrier: "MY_APP"`, `service`, sender and recipient snapshots,
+references, `carrier: "OherbTracker"`, `service`, sender and recipient snapshots,
 and one package payload. Package units are accepted case-insensitively and are
 stored using the domain values `KG`/`LB` and `CM`/`IN`.
 

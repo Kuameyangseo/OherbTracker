@@ -4,6 +4,9 @@ import {
   createTrackerIntegrationShipmentController,
   getTrackerIntegrationShipmentByOrderController,
   getPublicTrackingController,
+  getTrackerIntegrationShipmentByTrackingNumberController,
+  updateTrackerIntegrationShipmentLocationController,
+  updateTrackerIntegrationShipmentStatusController,
 } from '../controllers/tracker-integration.controller.js';
 
 const trackerIntegrationRouter = Router();
@@ -12,6 +15,7 @@ trackerIntegrationRouter.get(
   '/shipments/track/:trackingNumber',
   getPublicTrackingController(),
 );
+trackerIntegrationRouter.get('/shipments/tracking/:trackingNumber', trackerApiAuth, getTrackerIntegrationShipmentByTrackingNumberController());
 trackerIntegrationRouter.post(
   '/shipments',
   trackerApiAuth,
@@ -22,5 +26,7 @@ trackerIntegrationRouter.get(
   trackerApiAuth,
   getTrackerIntegrationShipmentByOrderController(),
 );
+trackerIntegrationRouter.patch('/shipments/order/:externalOrderId', trackerApiAuth, updateTrackerIntegrationShipmentLocationController());
+trackerIntegrationRouter.patch('/shipments/order/:externalOrderId/status', trackerApiAuth, updateTrackerIntegrationShipmentStatusController());
 
 export default trackerIntegrationRouter;

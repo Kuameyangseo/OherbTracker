@@ -21,13 +21,13 @@ import { createShipmentNotification } from './notification.service.js';
 type RequestUser = {
   id: string;
   email: string;
-  role: 'CUSTOMER' | 'STAFF' | 'ADMIN';
+  role: 'CUSTOMER' | 'SELLER' | 'STAFF' | 'ADMIN';
 };
 type TrackingInput = TrackingEventInput;
 
 type PopulatedShipment = ShipmentDocument & {
-  originAddress?: { city?: string; state?: string; country?: string };
-  destinationAddress?: { city?: string; state?: string; country?: string };
+  originAddress?: { name?: string; phone?: string; addressLine1?: string; addressLine2?: string; city?: string; state?: string; postalCode?: string; country?: string };
+  destinationAddress?: { name?: string; phone?: string; addressLine1?: string; addressLine2?: string; city?: string; state?: string; postalCode?: string; country?: string };
   trackingEvents?: TrackingEventDocument[];
 };
 
@@ -67,8 +67,13 @@ function eventResponse(event: TrackingEventDocument | Record<string, unknown>) {
 function publicAddress(address?: PopulatedShipment['originAddress']) {
   if (!address) return null;
   return {
+    name: address.name,
+    phone: address.phone,
+    addressLine1: address.addressLine1,
+    addressLine2: address.addressLine2 ?? null,
     city: address.city,
     state: address.state ?? null,
+    postalCode: address.postalCode,
     country: address.country,
   };
 }
@@ -123,6 +128,7 @@ async function findShipmentForUser(
 
   const filter: Record<string, unknown> = { _id: id };
   if (user.role === 'CUSTOMER') filter.customerId = user.id;
+  if (user.role === 'SELLER') filter.sellerId = user.id;
 
   const query = Shipment.findOne(filter);
   if (session) query.session(session);
@@ -136,8 +142,8 @@ async function findShipmentForUser(
 export async function getPublicTracking(trackingNumber: string) {
   const normalized = normalizeTrackingNumber(trackingNumber);
   const shipment = (await Shipment.findOne({ trackingNumber: normalized })
-    .populate({ path: 'originAddress', select: 'city state country -_id' })
-    .populate({ path: 'destinationAddress', select: 'city state country -_id' })
+    .populate({ path: 'originAddress', select: 'name phone addressLine1 addressLine2 city state postalCode country -_id' })
+    .populate({ path: 'destinationAddress', select: 'name phone addressLine1 addressLine2 city state postalCode country -_id' })
     .populate({
       path: 'trackingEvents',
       options: { sort: { timestamp: 1 } },
@@ -298,6 +304,22 @@ export async function updateShipmentStatus(
   user: RequestUser,
 ) {
   return applyTrackingEvent(id, input, user);
+}
+
+export async function updateShipmentStatusByExternalOrder(
+  externalOrderId: string,
+  input: ShipmentStatusUpdateInput,
+) {
+  const shipment = await Shipment.findOne({ externalOrderId }).select('_id').lean();
+  if (!shipment) {
+    throw new ShipmentError(404, 'SHIPMENT_NOT_FOUND', 'Tracker shipment not found.');
+  }
+
+  return applyTrackingEvent(String(shipment._id), input, {
+    id: '',
+    email: '',
+    role: 'ADMIN',
+  });
 }
 
 export { normalizeTrackingNumber, eventId };

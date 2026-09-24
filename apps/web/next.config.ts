@@ -2,9 +2,9 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  allowedDevOrigins: ['100.90.104.20'],
-  // Keep the long-running PM2 dev server isolated from production builds.
-  distDir: process.env.NEXT_PHASE === 'phase-production-build' ? '.next' : '.next-dev',
+  allowedDevOrigins: ['100.88.49.91', '100.90.104.20', 'localhost', '127.0.0.1'],
+  // Keep development output isolated from production builds and starts.
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   webpack(config) {
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),

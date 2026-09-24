@@ -5,12 +5,13 @@ import {
   User,
   type NotificationDocument,
 } from '@oherb-tracker/database';
-import { NotificationType, ShipmentStatus } from '@oherb-tracker/shared-types';
+import { NotificationType, ShipmentStatus, UserRole } from '@oherb-tracker/shared-types';
 import { publishNotificationNew } from '../socket/socket.publisher.js';
 import { dispatchShipmentNotification } from '../notifications/dispatcher.js';
 
 const statusTypes: Partial<Record<ShipmentStatus, NotificationType>> = {
   [ShipmentStatus.CREATED]: NotificationType.SHIPMENT_CREATED,
+  [ShipmentStatus.PICKUP_SCHEDULED]: NotificationType.SHIPMENT_PICKUP_SCHEDULED,
   [ShipmentStatus.PICKED_UP]: NotificationType.SHIPMENT_PICKED_UP,
   [ShipmentStatus.IN_TRANSIT]: NotificationType.SHIPMENT_IN_TRANSIT,
   [ShipmentStatus.ARRIVED_AT_FACILITY]:
@@ -26,6 +27,7 @@ const statusTypes: Partial<Record<ShipmentStatus, NotificationType>> = {
 
 const labels: Record<string, string> = {
   SHIPMENT_CREATED: 'Shipment created',
+  SHIPMENT_PICKUP_SCHEDULED: 'Pickup scheduled',
   SHIPMENT_PICKED_UP: 'Shipment picked up',
   SHIPMENT_IN_TRANSIT: 'Shipment in transit',
   SHIPMENT_ARRIVED_AT_FACILITY: 'Shipment arrived at facility',
@@ -104,41 +106,51 @@ export async function createShipmentNotification(
   const type = notificationTypeForStatus(status);
   if (!type || !mongoose.isValidObjectId(shipmentId)) return null;
   const shipment = await Shipment.findById(shipmentId)
-    .select('customerId trackingNumber status currentLocation')
+    .select('customerId sellerId externalSellerId trackingNumber status currentLocation')
     .lean();
-  if (!shipment || !shipment.customerId) return null;
-  const preferences = await User.findById(shipment.customerId)
-    .select('notificationPreferences')
-    .lean();
-  const inAppEnabled = isShipmentStatusNotificationsEnabled(preferences);
+  if (!shipment) return null;
   const title = notificationTitle(type);
   const readable = status.replaceAll('_', ' ').toLowerCase();
-  const notification = await Notification.create({
-    userId: shipment.customerId,
-    type,
-    title,
-    message: `Your shipment ${shipment.trackingNumber} is ${readable}.`,
-    shipmentId,
-    trackingNumber: shipment.trackingNumber,
-  });
-  const safe = safeNotification(notification.toObject());
-  if (inAppEnabled) publishNotificationNew(String(shipment.customerId), safe);
-  void dispatchShipmentNotification({
-    notificationId: safe.id,
-    userId: String(shipment.customerId),
-    title,
-    message: notification.message,
-    trackingNumber: shipment.trackingNumber,
-    status,
-    location: shipment.currentLocation?.city,
-  }).catch((error: unknown) => {
-    console.error('[notification] delivery dispatch failed', {
-      notificationId: safe.id,
+  const seller = shipment.sellerId
+    ? null
+    : shipment.externalSellerId
+      ? await User.findOne({ externalSellerId: shipment.externalSellerId, role: UserRole.SELLER }).select('_id').lean()
+      : null;
+  const recipientIds: string[] = [...new Set([
+    shipment.customerId ? String(shipment.customerId) : undefined,
+    shipment.sellerId ? String(shipment.sellerId) : seller ? String(seller._id) : undefined,
+  ].filter((userId): userId is string => Boolean(userId)))];
+  if (!recipientIds.length) return null;
+  const notifications = await Promise.all(recipientIds.map(async (userId) => {
+    const preferences = await User.findById(userId).select('notificationPreferences').lean();
+    const notification = await Notification.create({
+      userId,
+      type,
+      title,
+      message: `Your shipment ${shipment.trackingNumber} is ${readable}.`,
       shipmentId,
-      errorCode: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+      trackingNumber: shipment.trackingNumber,
     });
-  });
-  return safe;
+    const safe = safeNotification(notification.toObject());
+    if (isShipmentStatusNotificationsEnabled(preferences)) publishNotificationNew(userId, safe);
+    void dispatchShipmentNotification({
+      notificationId: safe.id,
+      userId,
+      title,
+      message: notification.message,
+      trackingNumber: shipment.trackingNumber,
+      status,
+      location: shipment.currentLocation?.city,
+    }).catch((error: unknown) => {
+      console.error('[notification] delivery dispatch failed', {
+        notificationId: safe.id,
+        shipmentId,
+        errorCode: error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+      });
+    });
+    return safe;
+  }));
+  return notifications[0] ?? null;
 }
 
 export async function listNotifications(

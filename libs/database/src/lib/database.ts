@@ -8,9 +8,14 @@ export function connectDatabase(uri = serverConfig.mongoUri): Promise<typeof mon
     return Promise.reject(new Error('MONGODB_URI is not configured'));
   }
 
-  connectionPromise ??= mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 5_000,
-  });
+  connectionPromise ??= mongoose
+    .connect(uri, {
+      serverSelectionTimeoutMS: 5_000,
+    })
+    .catch((error) => {
+      connectionPromise = undefined;
+      throw error;
+    });
 
   return connectionPromise;
 }

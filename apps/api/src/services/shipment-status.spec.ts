@@ -18,6 +18,20 @@ import {
 } from './notification.service.js';
 
 describe('shipment status transitions', () => {
+  it('allows the normal pickup-to-delivery path', () => {
+    const normalPath = [
+      ShipmentStatus.PICKUP_SCHEDULED,
+      ShipmentStatus.PICKED_UP,
+      ShipmentStatus.IN_TRANSIT,
+      ShipmentStatus.OUT_FOR_DELIVERY,
+      ShipmentStatus.DELIVERED,
+    ];
+
+    for (let index = 0; index < normalPath.length - 1; index += 1) {
+      expect(canTransitionShipmentStatus(normalPath[index], normalPath[index + 1])).toBe(true);
+    }
+  });
+
   it('allows the supported forward transitions', () => {
     expect(
       canTransitionShipmentStatus(
@@ -120,6 +134,14 @@ describe('tracking number generation', () => {
 
   describe('shipment notifications', () => {
     it('maps customer-visible shipment statuses to notification types and titles', () => {
+      expect(notificationTypeForStatus(ShipmentStatus.PICKUP_SCHEDULED)).toBe(
+        'SHIPMENT_PICKUP_SCHEDULED',
+      );
+      expect(
+        notificationTitle(
+          notificationTypeForStatus(ShipmentStatus.PICKUP_SCHEDULED)!,
+        ),
+      ).toBe('Pickup scheduled');
       expect(notificationTypeForStatus(ShipmentStatus.DELIVERED)).toBe(
         'SHIPMENT_DELIVERED',
       );

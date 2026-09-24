@@ -8,10 +8,11 @@ import {
   type AddressDocument,
   type ShipmentDocument,
 } from '@oherb-tracker/database';
-import { ServiceType, ShipmentStatus } from '@oherb-tracker/shared-types';
+import { ServiceType, ShipmentStatus, UserRole } from '@oherb-tracker/shared-types';
 import type { ShipmentCreateInput, ShipmentQuery, ShipmentUpdateInput } from '@oherb-tracker/validation';
 import { publishShipmentUpdated, shipmentRealtimeSnapshot } from '../socket/socket.publisher.js';
 import { createShipmentNotification } from './notification.service.js';
+import { geocodeAddress } from './geocoding.service.js';
 
 export class ShipmentError extends Error {
   constructor(
@@ -26,10 +27,11 @@ export class ShipmentError extends Error {
 
 type CreateShipmentInput = ShipmentCreateInput;
 type UpdateShipmentInput = ShipmentUpdateInput;
-type RequestUser = { id: string; email: string; role: 'CUSTOMER' | 'STAFF' | 'ADMIN' };
+type RequestUser = { id: string; email: string; role: 'CUSTOMER' | 'SELLER' | 'STAFF' | 'ADMIN' };
 
 type ShipmentWithRelations = ShipmentDocument & {
   customer?: { id?: string; name?: string; email?: string; role?: string };
+  seller?: { id?: string; name?: string; email?: string; role?: string };
   originAddress?: AddressDocument;
   destinationAddress?: AddressDocument;
   trackingEvents?: Array<Record<string, unknown>>;
@@ -72,6 +74,7 @@ function toShipmentResponse(shipment: ShipmentWithRelations, includeCustomer: bo
     externalOrderId: shipment.externalOrderId ?? null,
     externalCustomerId: shipment.externalCustomerId ?? null,
     externalSellerId: shipment.externalSellerId ?? null,
+    sellerId: shipment.sellerId ? String(shipment.sellerId) : null,
     status: shipment.status,
     serviceType: shipment.serviceType,
     origin: shipment.originAddress,
@@ -94,6 +97,15 @@ function toShipmentResponse(shipment: ShipmentWithRelations, includeCustomer: bo
     };
   }
 
+  if (includeCustomer && shipment.seller) {
+    response.seller = {
+      id: shipment.seller.id ?? String((shipment.seller as { _id?: unknown })._id ?? ''),
+      name: shipment.seller.name,
+      email: shipment.seller.email,
+      role: shipment.seller.role,
+    };
+  }
+
   if (shipment.trackingEvents) {
     response.trackingEvents = shipment.trackingEvents;
   }
@@ -104,6 +116,7 @@ function toShipmentResponse(shipment: ShipmentWithRelations, includeCustomer: bo
 function shipmentRelations(includeTrackingEvents = false) {
   return [
     { path: 'customer', select: 'name email role' },
+    { path: 'seller', select: 'name email role' },
     { path: 'originAddress', select: '-__v' },
     { path: 'destinationAddress', select: '-__v' },
     ...(includeTrackingEvents ? [{ path: 'trackingEvents', options: { sort: { timestamp: -1 } }, select: '-__v' }] : []),
@@ -125,9 +138,13 @@ async function createShipmentTransaction(input: CreateShipmentInput) {
         throw new ShipmentError(404, 'CUSTOMER_NOT_FOUND', 'Customer not found.');
       }
 
+      const [originInput, destinationInput] = await Promise.all([
+        geocodeAddress(toAddressInput(input.origin)),
+        geocodeAddress(toAddressInput(input.destination)),
+      ]);
       const [originAddress, destinationAddress] = await Promise.all([
-        new Address(toAddressInput(input.origin)).save({ session }),
-        new Address(toAddressInput(input.destination)).save({ session }),
+        new Address(originInput).save({ session }),
+        new Address(destinationInput).save({ session }),
       ]);
 
       const shipment = new Shipment({
@@ -146,8 +163,11 @@ async function createShipmentTransaction(input: CreateShipmentInput) {
         description: input.description,
         currentLocation: {
           name: 'Origin facility',
-          city: input.origin.city,
-          country: input.origin.country,
+          city: originInput.city,
+          country: originInput.country,
+          ...(originInput.latitude !== undefined && originInput.longitude !== undefined
+            ? { latitude: originInput.latitude, longitude: originInput.longitude }
+            : {}),
         },
       });
       await shipment.save({ session });
@@ -211,6 +231,7 @@ export async function listShipments(query: ShipmentQuery, user: RequestUser) {
   if (user.role === 'CUSTOMER') {
     filter.customerId = user.id;
   }
+  if (user.role === 'SELLER') filter.sellerId = user.id;
 
   if (query.status) filter.status = query.status;
   if (query.serviceType) filter.serviceType = query.serviceType;
@@ -252,6 +273,28 @@ export async function listShipments(query: ShipmentQuery, user: RequestUser) {
   };
 }
 
+export async function listCustomers(search = '') {
+  const expression = search.trim();
+  const filter: Record<string, unknown> = { role: UserRole.CUSTOMER };
+  if (expression) {
+    const pattern = new RegExp(escapeRegex(expression), 'i');
+    filter.$or = [{ name: pattern }, { email: pattern }];
+  }
+
+  const customers = await User.find(filter)
+    .select('_id name email externalCustomerId')
+    .sort({ name: 1 })
+    .limit(25)
+    .lean();
+
+  return customers.map((customer) => ({
+    id: String(customer._id),
+    name: customer.name,
+    email: customer.email,
+    externalCustomerId: customer.externalCustomerId ?? null,
+  }));
+}
+
 export async function getShipmentById(id: string, user: RequestUser) {
   if (!isObjectId(id)) {
     throw new ShipmentError(404, 'SHIPMENT_NOT_FOUND', 'Shipment not found.');
@@ -259,6 +302,7 @@ export async function getShipmentById(id: string, user: RequestUser) {
 
   const filter: Record<string, unknown> = { _id: id };
   if (user.role === 'CUSTOMER') filter.customerId = user.id;
+  if (user.role === 'SELLER') filter.sellerId = user.id;
 
   const shipment = (await Shipment.findOne(filter).populate(shipmentRelations(true)).lean()) as unknown as ShipmentWithRelations | null;
   if (!shipment) {

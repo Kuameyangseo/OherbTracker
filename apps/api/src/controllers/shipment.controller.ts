@@ -9,6 +9,7 @@ import {
   createShipment,
   deleteShipment,
   getShipmentById,
+  listCustomers,
   listShipments,
   updateShipment,
 } from '../services/shipment.service.js';
@@ -41,6 +42,12 @@ export async function listShipmentsController(request: Request, response: Respon
 
   const data = await listShipments(parsed.data, request.user!);
   return response.status(200).json({ success: true, data });
+}
+
+export async function listCustomersController(request: Request, response: Response) {
+  const search = typeof request.query.search === 'string' ? request.query.search : '';
+  const customers = await listCustomers(search);
+  return response.status(200).json({ success: true, data: { customers } });
 }
 
 export async function getShipmentController(request: Request, response: Response) {

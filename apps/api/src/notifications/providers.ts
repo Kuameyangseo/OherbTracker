@@ -1,4 +1,5 @@
 import { serverConfig } from '@oherb-tracker/config';
+import nodemailer from 'nodemailer';
 
 export type EmailMessage = {
   to: string;
@@ -50,6 +51,48 @@ export class ConsoleEmailProvider implements EmailProvider {
   }
 }
 
+export class SmtpEmailProvider implements EmailProvider {
+  private readonly transport = nodemailer.createTransport({
+    ...(serverConfig.smtpService ? { service: serverConfig.smtpService } : {}),
+    ...(serverConfig.smtpHost ? { host: serverConfig.smtpHost } : {}),
+    port: serverConfig.smtpPort,
+    secure: serverConfig.smtpPort === 465,
+    auth: serverConfig.smtpUser && serverConfig.smtpPass
+      ? { user: serverConfig.smtpUser, pass: serverConfig.smtpPass }
+      : undefined,
+  });
+
+  async send(message: EmailMessage): Promise<DeliveryResult> {
+    if (!validEmail(message.to) || !message.subject.trim() || !message.text.trim()) {
+      return { accepted: false, provider: 'smtp', errorCode: 'INVALID_EMAIL_MESSAGE' };
+    }
+    if (!serverConfig.smtpUser || !serverConfig.smtpPass) {
+      return { accepted: false, provider: 'smtp', errorCode: 'SMTP_NOT_CONFIGURED' };
+    }
+
+    try {
+      const result = await this.transport.sendMail({
+        from: message.from ?? serverConfig.emailFrom,
+        to: message.to,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+      });
+      return {
+        accepted: result.accepted.length > 0,
+        provider: 'smtp',
+        messageId: result.messageId,
+      };
+    } catch (error) {
+      return {
+        accepted: false,
+        provider: 'smtp',
+        errorCode: error instanceof Error ? error.name : 'SMTP_SEND_FAILED',
+      };
+    }
+  }
+}
+
 export class ConsoleSmsProvider implements SmsProvider {
   async send(message: SmsMessage): Promise<DeliveryResult> {
     if (!validPhone(message.to) || !message.body.trim()) {
@@ -77,7 +120,9 @@ export class DisabledSmsProvider implements SmsProvider {
 }
 
 export function createEmailProvider(): EmailProvider {
-  return serverConfig.emailProvider === 'disabled' ? new DisabledEmailProvider() : new ConsoleEmailProvider();
+  if (serverConfig.emailProvider === 'disabled') return new DisabledEmailProvider();
+  if (serverConfig.emailProvider === 'smtp') return new SmtpEmailProvider();
+  return new ConsoleEmailProvider();
 }
 
 export function createSmsProvider(): SmsProvider {

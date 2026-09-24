@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { serverConfig } from '@oherb-tracker/config';
 import { ServiceType, ShipmentStatus } from '@oherb-tracker/shared-types';
-import { trackerIntegrationShipmentSchema } from '@oherb-tracker/validation';
+import { shipmentStatusUpdateSchema, trackerIntegrationShipmentSchema } from '@oherb-tracker/validation';
 import { trackerApiAuth } from '../middleware/tracker-api-auth.js';
 import { createTrackerIntegrationShipment } from '../services/tracker-integration.service.js';
 import { getPublicTracking } from '../services/tracking.service.js';
@@ -9,13 +9,15 @@ import trackerIntegrationRouter from '../routes/tracker-integration.routes.js';
 import {
   createTrackerIntegrationShipmentController,
   getPublicTrackingController,
+  updateTrackerIntegrationShipmentLocationController,
+  updateTrackerIntegrationShipmentStatusController,
 } from './tracker-integration.controller.js';
 
 const validPayload = {
   externalOrderId: 'ORDER-123',
   externalCustomerId: 'CUSTOMER-123',
   externalSellerId: 'SELLER-123',
-  carrier: 'MY_APP',
+  carrier: 'OherbTracker',
   service: 'STANDARD',
   sender: {
     name: 'ABC Store',
@@ -182,13 +184,69 @@ describe('public tracking controller', () => {
 });
 
 describe('tracker shipment contract', () => {
+  it('exposes an authenticated status callback route', () => {
+    const routes = (trackerIntegrationRouter as unknown as { stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }> }).stack
+      .map((layer) => layer.route)
+      .filter((route): route is { path: string; methods: Record<string, boolean> } => Boolean(route));
+
+    expect(routes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: '/shipments/order/:externalOrderId/status',
+        methods: expect.objectContaining({ patch: true }),
+      }),
+    ]));
+  });
+
+  it('accepts a delivery callback and delegates it by external order id', async () => {
+    const response = responseDouble();
+    const updateStatus = jest.fn();
+    updateStatus.mockResolvedValue({ shipmentId: 'shipment-1', status: ShipmentStatus.DELIVERED });
+    const body = {
+      status: 'DELIVERED',
+      description: 'Package delivered',
+      location: 'Customer address',
+      city: 'Accra',
+      country: 'Ghana',
+    };
+
+    await updateTrackerIntegrationShipmentStatusController(updateStatus)(
+      { params: { externalOrderId: 'ORDER-123' }, body } as any,
+      response,
+    );
+
+    expect(updateStatus).toHaveBeenCalledWith('ORDER-123', expect.objectContaining({ status: ShipmentStatus.DELIVERED }));
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.json).toHaveBeenCalledWith({ success: true, data: expect.any(Object) });
+  });
+
+  it('accepts status together with the existing tracker location callback', async () => {
+    const response = responseDouble();
+    const updateStatus = jest.fn();
+    updateStatus.mockResolvedValue({ shipmentId: 'shipment-1', status: ShipmentStatus.OUT_FOR_DELIVERY });
+
+    await updateTrackerIntegrationShipmentLocationController(jest.fn(), updateStatus)(
+      { params: { externalOrderId: 'ORDER-123' }, body: { status: 'OUT_FOR_DELIVERY', description: 'Ready for delivery', currentLocation: { name: 'Accra hub', city: 'Accra', country: 'Ghana', latitude: 5.6037, longitude: -0.187 } } } as any,
+      response,
+    );
+
+    expect(updateStatus).toHaveBeenCalledWith('ORDER-123', expect.objectContaining({ status: ShipmentStatus.OUT_FOR_DELIVERY }));
+  });
+
+  it('rejects an incomplete delivery callback', async () => {
+    expect(shipmentStatusUpdateSchema.safeParse({ status: 'DELIVERED' }).success).toBe(false);
+  });
+
   it('accepts the E-commerce payload and normalizes package units', () => {
-    const parsed = trackerIntegrationShipmentSchema.safeParse(validPayload);
+    const parsed = trackerIntegrationShipmentSchema.safeParse({
+      ...validPayload,
+      notifyStaff: true,
+    });
 
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data.package.weightUnit).toBe('KG');
       expect(parsed.data.package.dimensionUnit).toBe('CM');
+      expect(parsed.data.notifyStaff).toBe(true);
     }
   });
 
@@ -211,7 +269,7 @@ describe('tracker shipment contract', () => {
         },
       },
     ],
-    ['carrier', { carrier: 'UPS' }],
+    ['carrier', { carrier: 'FedEx' }],
   ])('rejects an invalid %s', (_field, override) => {
     expect(
       trackerIntegrationShipmentSchema.safeParse({
@@ -225,7 +283,7 @@ describe('tracker shipment contract', () => {
     const response = responseDouble();
 
     await createTrackerIntegrationShipmentController()(
-      { body: { carrier: 'MY_APP' } } as any,
+      { body: { carrier: 'OherbTracker' } } as any,
       response,
     );
 
@@ -248,10 +306,17 @@ describe('tracker shipment contract', () => {
       shipmentNumber: 'SHP-20260917-000001',
       trackingNumber: 'ST1234567890ABCDEF12GH',
       externalOrderId: 'ORDER-123',
+      customerId: '507f1f77bcf86cd799439014',
       status: ShipmentStatus.LABEL_CREATED,
       package: {
         packageId: '507f1f77bcf86cd799439012',
         packageNumber: 'PKG-20260917-000001',
+        label: {
+          id: 'LBL-ST1234567890ABCDEF12GH',
+          trackingNumber: 'ST1234567890ABCDEF12GH',
+          format: 'PDF',
+          url: '/api/v1/shipments/labels/ST1234567890ABCDEF12GH',
+        },
       },
     });
 
@@ -268,10 +333,15 @@ describe('tracker shipment contract', () => {
         shipmentNumber: 'SHP-20260917-000001',
         trackingNumber: 'ST1234567890ABCDEF12GH',
         externalOrderId: 'ORDER-123',
+        customerId: '507f1f77bcf86cd799439014',
         status: 'LABEL_CREATED',
         package: {
           packageId: '507f1f77bcf86cd799439012',
           packageNumber: 'PKG-20260917-000001',
+          label: expect.objectContaining({
+            id: 'LBL-ST1234567890ABCDEF12GH',
+            format: 'PDF',
+          }),
         },
       }),
     });
